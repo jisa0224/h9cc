@@ -25,6 +25,10 @@ test() {
 # test input expect
 test 0 0
 test 42 42
+test "9+3" 12
+test "5-2" 3
+test "10+3+2" 15
+test "5+20-4" 21
 
 echo ''
 echo 'h9cc test finish.'
