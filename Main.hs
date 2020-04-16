@@ -1,7 +1,7 @@
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
-import Data.Char (isDigit)
-import Data.List (isPrefixOf, stripPrefix)
+import Data.Char (isDigit, isSpace)
+import Data.List (uncons, isPrefixOf, stripPrefix)
 import Data.Maybe (fromJust)
 
 main :: IO ()
@@ -12,23 +12,47 @@ main = do
         else hPutStrLn stderr "參數數量錯誤！"
 
 compileCtoASM :: String -> String
-compileCtoASM input =
-    ".intel_syntax noprefix\n\
-    \.global main\n\
-    \main:\n" ++
-    "  mov rax, " ++ takeWhile isDigit input ++ "\n" ++
-    (generateRemainingAddSubCode $ dropWhile isDigit input) ++
-    "  ret\n"
+compileCtoASM input = 
+    let (firstToken, remainingTokens) = fromJust $ uncons $ tokenize input    -- `fromJust` is OK because there is always a `EOF` in the list
+     in unlines [".intel_syntax noprefix",
+                 ".global main",
+                 "main:",
+                 if isIntegerLiteral $ firstToken then "  mov rax, " ++ (show $ (\(IntegerLiteral x) -> x) firstToken) else errorWithoutStackTrace "必須以數字開頭！",
+                 generateASMCodeFromTokens remainingTokens,
+                 "  ret"]
 
--- WARNING: Cannot handle space between operator and integer literal
-generateRemainingAddSubCode :: String -> String
-generateRemainingAddSubCode "" = ""
-generateRemainingAddSubCode addSubCode
-    | "+" `isPrefixOf` addSubCode =
-        let (term, remaining) = span isDigit $ fromJust $ stripPrefix "+" addSubCode
-        in "  add rax, " ++ term ++ "\n" ++ generateRemainingAddSubCode remaining
-    | "-" `isPrefixOf` addSubCode =
-        let (term, remaining) = span isDigit $ fromJust $ stripPrefix "-" addSubCode
-        in "  sub rax, " ++ term ++ "\n" ++ generateRemainingAddSubCode remaining
-    | otherwise =
-        error $ "Cannot parse \"" ++ addSubCode ++ "\""
+generateASMCodeFromTokens :: [Token] -> String
+generateASMCodeFromTokens [EOF] = ""
+generateASMCodeFromTokens (Operator op:IntegerLiteral num:ts) = 
+    case op of "+" -> "  add rax, " ++ (show num) ++ "\n"
+               "-" -> "  sub rax, " ++ (show num) ++ "\n"
+               _ -> errorWithoutStackTrace ("Unknown operator \"" ++ op ++ "\"")
+    ++ generateASMCodeFromTokens ts
+generateASMCodeFromTokens ts = errorWithoutStackTrace $ "Cannot generate code from token: " ++ (show $ take 5 ts) ++ " ..."
+
+-- Tokenizer
+data Token = EOF
+           | Operator String
+           | IntegerLiteral Int
+           deriving (Show, Eq)
+
+isIntegerLiteral :: Token -> Bool
+isIntegerLiteral (IntegerLiteral _) = True
+isIntegerLiteral _ = False
+
+tokenize :: String -> [Token]
+tokenize "" = [EOF]
+tokenize input
+    -- WARNING: isSpace '\n' == True, remember to fix this when handling multi-line source code
+    -- WARNING: this will not work for string literals
+    | isSpace $ head input = tokenize $ dropWhile isSpace input
+    | isDigit $ head input = (IntegerLiteral $ (read (takeWhile isDigit input) :: Int))
+                             : (tokenize $ dropWhile isDigit input)
+    | any (`isPrefixOf` input) operatorList =
+        let operator = head $ filter (`isPrefixOf` input) operatorList
+         in (Operator operator) : (tokenize $ fromJust $ stripPrefix operator input)
+    | otherwise = errorWithoutStackTrace $ "Cannot parse \"" ++ input ++ "\""
+    where
+        -- WARNING: multi-character operator must precede single-character operator
+        -- WARNING: this only works when all operators are left-associated
+        operatorList = ["+", "-"]
