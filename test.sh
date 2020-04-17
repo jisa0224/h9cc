@@ -7,7 +7,9 @@ test() {
     expect="$2"
     tmpfile_noextension=$(mktemp /tmp/h9cc-test-XXXXX)
 
-    runghc ./Main.hs "$input" > "$tmpfile_noextension.s"
+    # ghc will only search for current working directory for modules,
+    # so we have to use `-i⟨dir⟩[:⟨dir⟩]*` to add import directory (see `man ghc`)
+    runghc -i./src ./src/Main.hs "$input" > "$tmpfile_noextension.s"
     gcc -o "$tmpfile_noextension" "$tmpfile_noextension.s"
     "$tmpfile_noextension"
     actual="$?"
