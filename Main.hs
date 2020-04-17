@@ -13,33 +13,20 @@ main = do
 compileCtoASM :: String -> String
 compileCtoASM input = 
     let tokens = tokenize input
+        ast = parse tokens
+        asmCode = generateASMCodeFromAST ast
      in unlines [".intel_syntax noprefix",
                  ".global main",
                  "main:",
-                 if (not . null) tokens && (isTokenIntegerLiteral $ head tokens)
-                    then "  mov rax, " ++ (show $ (\(TokenIntegerLiteral x) -> x) $ head tokens)
-                    else error "必須以數字開頭！",
-                 generateASMCodeFromTokens $ tail tokens,
+                 asmCode,
+                 "  pop rax",
                  "  ret"]
-
-generateASMCodeFromTokens :: [Token] -> String
-generateASMCodeFromTokens [] = ""
-generateASMCodeFromTokens (TokenOperator op:TokenIntegerLiteral num:ts) = 
-    case op of "+" -> "  add rax, " ++ (show num) ++ "\n"
-               "-" -> "  sub rax, " ++ (show num) ++ "\n"
-               _ -> error ("Unknown operator \"" ++ op ++ "\"")
-    ++ generateASMCodeFromTokens ts
-generateASMCodeFromTokens ts = error $ "Cannot generate code from token: " ++ (show $ take 5 ts) ++ " ..."
 
 
 -- Tokenizer (Lexical Analysis): String -> Tokens
 data Token = TokenIntegerLiteral Int
            | TokenOperator String
            deriving (Show, Eq)
-
-isTokenIntegerLiteral :: Token -> Bool
-isTokenIntegerLiteral (TokenIntegerLiteral _) = True
-isTokenIntegerLiteral _ = False
 
 tokenize :: String -> [Token]
 tokenize "" = []
@@ -70,6 +57,7 @@ data Node = NodeIntegerLiteral Int
           deriving (Show)
 
 parse :: [Token] -> Node
+parse [] = error "Parser: empty expression is not allowed"
 parse ts =
     let (ast, remaining) = expr ts
      in if null remaining
@@ -111,3 +99,20 @@ term (TokenOperator "(":ts)
                else error $ "Parser: too much operands: " ++ show remaining
     | otherwise = error $ "Parser: cannot find \")\""
 term ts = error $ "Parser: cannot parse tokens: " ++ show ts
+
+
+-- Code generator: generate Assembly Code from AST
+generateASMCodeFromAST :: Node -> String
+generateASMCodeFromAST (NodeIntegerLiteral num) = "  push " ++ show num
+generateASMCodeFromAST (NodeOperator op lhs rhs) =
+    unlines [generateASMCodeFromAST lhs,
+             generateASMCodeFromAST rhs,
+             "  pop rdi",
+             "  pop rax",
+             case op of "+" -> "  add rax, rdi"
+                        "-" -> "  sub rax, rdi"
+                        "*" -> "  imul rax, rdi"
+                        "/" -> unlines ["  cqo",
+                                        "  idiv rdi"]
+                        _ -> error $ "Code generator: unknown operator: " ++ op,
+             "  push rax"]
