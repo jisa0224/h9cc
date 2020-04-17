@@ -43,15 +43,18 @@ tokenize input
     where
         -- WARNING: multi-character operator must precede single-character operator
         -- WARNING: this only works when all operators are left-associated
-        operatorList = ["+", "-", "*", "/", "(", ")"]
+        operatorList = ["==", "!=", "<=", "<", ">=", ">", "+", "-", "*", "/", "(", ")"]
 
 
 -- Parser (Syntax analysis): Tokens -> Abstract Syntax Tree (AST)
 
--- expr  = mul ("+" mul | "-" mul)*
--- mul   = unary ("*" unary | "/" unary)*
--- unary = ("+" | "-")? term
--- term  = num | "(" expr ")"
+-- expr       = equality
+-- equality   = relational ("==" relational | "!=" relational)*
+-- relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+-- add        = mul ("+" mul | "-" mul)*
+-- mul        = unary ("*" unary | "/" unary)*
+-- unary      = ("+" | "-")? term
+-- term       = num | "(" expr ")"
 
 data Node = NodeIntegerLiteral Int
           | NodeOperator String Node Node
@@ -66,15 +69,42 @@ parse ts =
            else error $ "Parser: too much operands: " ++ show remaining
 
 expr :: [Token] -> (Node, [Token])
-expr ts = expr' $ mul ts
+expr ts = equality ts
+
+equality :: [Token] -> (Node, [Token])
+equality ts = equality' $ relational ts
     where
-        expr' :: (Node, [Token]) -> (Node, [Token])
-        expr' (node, []) = (node, [])
-        expr' (lhs, lremaining)
+        equality' :: (Node, [Token]) -> (Node, [Token])
+        equality' (node, []) = (node, [])
+        equality' (lhs, lremaining)
+            | head lremaining `elem` [TokenOperator "==", TokenOperator "!="] = 
+                let (rhs, rremaining) = relational $ tail lremaining
+                    newLhs = ((\(TokenOperator x) -> NodeOperator x) $ head lremaining) lhs rhs
+                in equality' (newLhs, rremaining)
+            | otherwise = (lhs, lremaining)
+
+relational :: [Token] -> (Node, [Token])
+relational ts = relational' $ add ts
+    where
+        relational' :: (Node, [Token]) -> (Node, [Token])
+        relational' (node, []) = (node, [])
+        relational' (lhs, lremaining)
+            | head lremaining `elem` [TokenOperator "<=", TokenOperator "<", TokenOperator ">=", TokenOperator ">"] = 
+                let (rhs, rremaining) = add $ tail lremaining
+                    newLhs = ((\(TokenOperator x) -> NodeOperator x) $ head lremaining) lhs rhs
+                in relational' (newLhs, rremaining)
+            | otherwise = (lhs, lremaining)
+
+add :: [Token] -> (Node, [Token])
+add ts = add' $ mul ts
+    where
+        add' :: (Node, [Token]) -> (Node, [Token])
+        add' (node, []) = (node, [])
+        add' (lhs, lremaining)
             | head lremaining `elem` [TokenOperator "+", TokenOperator "-"] = 
                 let (rhs, rremaining) = mul $ tail lremaining
                     newLhs = ((\(TokenOperator x) -> NodeOperator x) $ head lremaining) lhs rhs
-                in expr' (newLhs, rremaining)
+                in add' (newLhs, rremaining)
             | otherwise = (lhs, lremaining)
 
 mul :: [Token] -> (Node, [Token])
@@ -117,10 +147,15 @@ generateASMCodeFromAST (NodeOperator op lhs rhs) =
              generateASMCodeFromAST rhs,
              "  pop rdi",
              "  pop rax",
-             case op of "+" -> "  add rax, rdi"
-                        "-" -> "  sub rax, rdi"
-                        "*" -> "  imul rax, rdi"
-                        "/" -> unlines ["  cqo",
-                                        "  idiv rdi"]
+             case op of "==" -> "  cmp rax, rdi\n  sete al\n  movzb rax, al"
+                        "!=" -> "  cmp rax, rdi\n  setne al\n  movzb rax, al"
+                        "<=" -> "  cmp rax, rdi\n  setle al\n  movzb rax, al"
+                        "<"  -> "  cmp rax, rdi\n  setl al\n  movzb rax, al"
+                        ">=" -> "  cmp rax, rdi\n  setge al\n  movzb rax, al"
+                        ">"  -> "  cmp rax, rdi\n  setg al\n  movzb rax, al"
+                        "+"  -> "  add rax, rdi"
+                        "-"  -> "  sub rax, rdi"
+                        "*"  -> "  imul rax, rdi"
+                        "/"  -> "  cqo\n  idiv rdi"
                         _ -> error $ "Code generator: unknown operator: " ++ op,
              "  push rax"]
