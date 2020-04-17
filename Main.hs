@@ -1,7 +1,7 @@
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
 import Data.Char (isDigit, isSpace)
-import Data.List (uncons, isPrefixOf, stripPrefix, elemIndex)
+import Data.List (isPrefixOf, stripPrefix, elemIndex)
 import Data.Maybe (fromJust)
 
 main :: IO ()
@@ -13,16 +13,18 @@ main = do
 
 compileCtoASM :: String -> String
 compileCtoASM input = 
-    let (firstToken, remainingTokens) = fromJust $ uncons $ tokenize input    -- `fromJust` is OK because there is always a `EOF` in the list
+    let tokens = tokenize input
      in unlines [".intel_syntax noprefix",
                  ".global main",
                  "main:",
-                 if isIntegerLiteral $ firstToken then "  mov rax, " ++ (show $ (\(IntegerLiteral x) -> x) firstToken) else error "必須以數字開頭！",
-                 generateASMCodeFromTokens remainingTokens,
+                 if (not . null) tokens && (isIntegerLiteral $ head tokens)
+                    then "  mov rax, " ++ (show $ (\(IntegerLiteral x) -> x) $ head tokens)
+                    else error "必須以數字開頭！",
+                 generateASMCodeFromTokens $ tail tokens,
                  "  ret"]
 
 generateASMCodeFromTokens :: [Token] -> String
-generateASMCodeFromTokens [EOF] = ""
+generateASMCodeFromTokens [] = ""
 generateASMCodeFromTokens (Operator op:IntegerLiteral num:ts) = 
     case op of "+" -> "  add rax, " ++ (show num) ++ "\n"
                "-" -> "  sub rax, " ++ (show num) ++ "\n"
@@ -32,8 +34,7 @@ generateASMCodeFromTokens ts = error $ "Cannot generate code from token: " ++ (s
 
 
 -- Tokenizer (Lexical Analysis): String -> Tokens
-data Token = EOF
-           | IntegerLiteral Int
+data Token = IntegerLiteral Int
            | Operator String
            deriving (Show, Eq)
 
@@ -42,7 +43,7 @@ isIntegerLiteral (IntegerLiteral _) = True
 isIntegerLiteral _ = False
 
 tokenize :: String -> [Token]
-tokenize "" = [EOF]
+tokenize "" = []
 tokenize input
     -- WARNING: isSpace '\n' == True, remember to fix this when handling multi-line source code
     -- WARNING: this will not work for string literals
@@ -50,8 +51,8 @@ tokenize input
     | isDigit $ head input = (IntegerLiteral $ (read (takeWhile isDigit input) :: Int))
                              : (tokenize $ dropWhile isDigit input)
     | any (`isPrefixOf` input) operatorList =
-        let operator = head $ filter (`isPrefixOf` input) operatorList
-         in (Operator operator) : (tokenize $ fromJust $ stripPrefix operator input)
+        let op = head $ filter (`isPrefixOf` input) operatorList
+         in (Operator op) : (tokenize $ fromJust $ stripPrefix op input)
     | otherwise = error $ "Cannot parse \"" ++ input ++ "\""
     where
         -- WARNING: multi-character operator must precede single-character operator
@@ -75,7 +76,7 @@ data Node = NodeIntegerLiteral Int
 parse :: [Token] -> Node
 parse tokens = 
     let (ast, remaining) = expr tokens
-     in if remaining == [EOF] then ast else error $ "Cannot parse tokens: " ++ (show remaining)
+     in if null remaining then ast else error $ "Cannot parse tokens: " ++ (show remaining)
 
 -- because + and - are left-associated, and Haskell use recursion instead of iteration,
 -- we have to parse from right to left, so the left side will at deeper place in AST
