@@ -48,9 +48,10 @@ tokenize input
 
 -- Parser (Syntax analysis): Tokens -> Abstract Syntax Tree (AST)
 
--- expr = mul ("+" mul | "-"  mul)*
--- mul  = term ("*" term | "/" term)*
--- term = num | "(" expr ")"
+-- expr  = mul ("+" mul | "-" mul)*
+-- mul   = unary ("*" unary | "/" unary)*
+-- unary = ("+" | "-")? term
+-- term  = num | "(" expr ")"
 
 data Node = NodeIntegerLiteral Int
           | NodeOperator String Node Node
@@ -77,16 +78,23 @@ expr ts = expr' $ mul ts
             | otherwise = (lhs, lremaining)
 
 mul :: [Token] -> (Node, [Token])
-mul ts = mul' $ term ts
+mul ts = mul' $ unary ts
     where
         mul' :: (Node, [Token]) -> (Node, [Token])
         mul' (node, []) = (node, [])
         mul' (lhs, lremaining)
             | head lremaining `elem` [TokenOperator "*", TokenOperator "/"] = 
-                let (rhs, rremaining) = term $ tail lremaining
+                let (rhs, rremaining) = unary $ tail lremaining
                     newLhs = ((\(TokenOperator x) -> NodeOperator x) $ head lremaining) lhs rhs
                 in mul' (newLhs, rremaining)
             | otherwise = (lhs, lremaining)
+
+unary :: [Token] -> (Node, [Token])
+unary tokens@(TokenOperator op:ts) = case op of "+" -> term ts
+                                                "-" -> let (node, remaining) = term ts
+                                                        in (NodeOperator "-" (NodeIntegerLiteral 0) node, remaining)
+                                                _ -> term tokens
+unary ts = term ts
 
 term :: [Token] -> (Node, [Token])
 term (TokenIntegerLiteral num:ts) = (NodeIntegerLiteral num, ts)
