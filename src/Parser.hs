@@ -6,28 +6,51 @@ module Parser (
 
 import Tokenizer (Token (..))
 
--- expr       = equality
--- equality   = relational ("==" relational | "!=" relational)*
--- relational = add ("<" add | "<=" add | ">" add | ">=" add)*
--- add        = mul ("+" mul | "-" mul)*
--- mul        = unary ("*" unary | "/" unary)*
--- unary      = ("+" | "-")? term
--- term       = num | "(" expr ")"
+-- program    = stmt*
+-- stmt       = expr ";"
+-- expr       = assign
+-- assign     = equality ("=" assign)?                             right-associated
+-- equality   = relational ("==" relational | "!=" relational)*    left-associated
+-- relational = add ("<" add | "<=" add | ">" add | ">=" add)*     left-associated
+-- add        = mul ("+" mul | "-" mul)*                           left-associated
+-- mul        = unary ("*" unary | "/" unary)*                     left-associated
+-- unary      = ("+" | "-")? primary
+-- primary    = num | ident | "(" expr ")"
 
 data Node = NodeIntegerLiteral Int
           | NodeOperator String Node Node
+          | NodeIdentifier String
+          | NodeProgram [Node]
           deriving (Show)
 
 parse :: [Token] -> Node
 parse [] = error "Parser: empty expression is not allowed"
-parse ts =
-    let (ast, remaining) = expr ts
-     in if null remaining
-           then ast
-           else error $ "Parser: too much operands: " ++ show remaining
+parse ts = NodeProgram $ program ts
+
+program :: [Token] -> [Node]
+program [] = []
+program ts =
+    let (newStmt, remaining) = stmt ts
+     in newStmt:(program remaining)
+
+stmt :: [Token] -> (Node, [Token])
+stmt ts =
+    let (exprBeforeSemicolon, remaining) = expr ts
+     in if (not . null) remaining && head remaining == TokenOperator ";"
+           then (exprBeforeSemicolon, tail remaining)
+           else error "Parser: missing \";\""
 
 expr :: [Token] -> (Node, [Token])
-expr ts = equality ts
+expr ts = assign ts
+
+-- assign is right-associated
+assign :: [Token] -> (Node, [Token])
+assign ts =
+    let (lhs, lremaining) = equality ts
+     in if (not . null) lremaining && head lremaining == TokenOperator "="
+           then let (rhs, rremaining) = assign $ tail lremaining
+                 in (NodeOperator "=" lhs rhs, rremaining)
+           else (lhs, lremaining)
 
 equality :: [Token] -> (Node, [Token])
 equality ts = equality' $ relational ts
@@ -78,20 +101,21 @@ mul ts = mul' $ unary ts
             | otherwise = (lhs, lremaining)
 
 unary :: [Token] -> (Node, [Token])
-unary tokens@(TokenOperator op:ts) = case op of "+" -> term ts
-                                                "-" -> let (node, remaining) = term ts
+unary tokens@(TokenOperator op:ts) = case op of "+" -> primary ts
+                                                "-" -> let (node, remaining) = primary ts
                                                         in (NodeOperator "-" (NodeIntegerLiteral 0) node, remaining)
-                                                _ -> term tokens
-unary ts = term ts
+                                                _ -> primary tokens
+unary ts = primary ts
 
-term :: [Token] -> (Node, [Token])
-term (TokenIntegerLiteral num:ts) = (NodeIntegerLiteral num, ts)
-term (TokenOperator "(":ts)
+primary :: [Token] -> (Node, [Token])
+primary (TokenIntegerLiteral num:ts) = (NodeIntegerLiteral num, ts)
+primary (TokenIdentifier ident:ts) = (NodeIdentifier ident, ts)
+primary (TokenOperator "(":ts)
     | (TokenOperator ")") `elem` ts = 
         let (exprInParenthesis, _:exprAfterParenthesis) = span (/= TokenOperator ")") ts
             (node, remaining) = expr exprInParenthesis
          in if null remaining
                then (node, exprAfterParenthesis)
                else error $ "Parser: too much operands: " ++ show remaining
-    | otherwise = error $ "Parser: cannot find \")\""
-term ts = error $ "Parser: cannot parse tokens: " ++ show ts
+    | otherwise = error $ "Parser: missing \")\""
+primary ts = error $ "Parser: cannot parse tokens: " ++ show ts

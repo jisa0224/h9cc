@@ -11,10 +11,11 @@ generateASMCode ast = unlines
      ".global main",
      "main:",
      generateASMCodeFromAST ast,
-     "  pop rax",
      "  ret"]
 
 generateASMCodeFromAST :: Node -> String
+generateASMCodeFromAST (NodeProgram stmts) =
+    unlines $ map (\stmt -> generateASMCodeFromAST stmt ++ "\n  pop rax") stmts
 generateASMCodeFromAST (NodeIntegerLiteral num) = "  push " ++ show num
 generateASMCodeFromAST (NodeOperator op lhs rhs) =
     unlines [generateASMCodeFromAST lhs,

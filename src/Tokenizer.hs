@@ -10,6 +10,7 @@ import Data.Maybe (fromJust)
 
 data Token = TokenIntegerLiteral Int
            | TokenOperator String
+           | TokenIdentifier String
            deriving (Show, Eq)
 
 tokenize :: String -> [Token]
@@ -23,8 +24,13 @@ tokenize input
     | any (`isPrefixOf` input) operatorList =
         let op = head $ filter (`isPrefixOf` input) operatorList
          in (TokenOperator op) : (tokenize $ fromJust $ stripPrefix op input)
+    | head input `elem` identifierNameAllow =
+        let ident = takeWhile (`elem` identifierNameAllow) input
+         in (TokenIdentifier ident) : (tokenize $ fromJust $ stripPrefix ident input)
     | otherwise = error $ "Tokenizer: cannot tokenize \"" ++ input ++ "\""
     where
         -- WARNING: multi-character operator must precede single-character operator
         -- WARNING: this only works when all operators are left-associated
-        operatorList = ["==", "!=", "<=", "<", ">=", ">", "+", "-", "*", "/", "(", ")"]
+        operatorList = [";", "==", "=", "!=", "<=", "<", ">=", ">", "+", "-", "*", "/", "(", ")"]
+        -- We don't need to exclude number as initial because `isDigit` already cover the case
+        identifierNameAllow = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz"
