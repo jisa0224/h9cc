@@ -52,7 +52,7 @@ tokenize input
     | any (`isPrefixOf` input) operatorList =
         let op = head $ filter (`isPrefixOf` input) operatorList
          in (TokenOperator op) : (tokenize $ fromJust $ stripPrefix op input)
-    | otherwise = error $ "Cannot parse \"" ++ input ++ "\""
+    | otherwise = error $ "Tokenizer: cannot tokenize \"" ++ input ++ "\""
     where
         -- WARNING: multi-character operator must precede single-character operator
         -- WARNING: this only works when all operators are left-associated
@@ -68,3 +68,46 @@ tokenize input
 data Node = NodeIntegerLiteral Int
           | NodeOperator String Node Node
           deriving (Show)
+
+parse :: [Token] -> Node
+parse ts =
+    let (ast, remaining) = expr ts
+     in if null remaining
+           then ast
+           else error $ "Parser: too much operands: " ++ show remaining
+
+expr :: [Token] -> (Node, [Token])
+expr ts = expr' $ mul ts
+    where
+        expr' :: (Node, [Token]) -> (Node, [Token])
+        expr' (node, []) = (node, [])
+        expr' (lhs, lremaining)
+            | head lremaining `elem` [TokenOperator "+", TokenOperator "-"] = 
+                let (rhs, rremaining) = mul $ tail lremaining
+                    newLhs = ((\(TokenOperator x) -> NodeOperator x) $ head lremaining) lhs rhs
+                in expr' (newLhs, rremaining)
+            | otherwise = (lhs, lremaining)
+
+mul :: [Token] -> (Node, [Token])
+mul ts = mul' $ term ts
+    where
+        mul' :: (Node, [Token]) -> (Node, [Token])
+        mul' (node, []) = (node, [])
+        mul' (lhs, lremaining)
+            | head lremaining `elem` [TokenOperator "*", TokenOperator "/"] = 
+                let (rhs, rremaining) = term $ tail lremaining
+                    newLhs = ((\(TokenOperator x) -> NodeOperator x) $ head lremaining) lhs rhs
+                in mul' (newLhs, rremaining)
+            | otherwise = (lhs, lremaining)
+
+term :: [Token] -> (Node, [Token])
+term (TokenIntegerLiteral num:ts) = (NodeIntegerLiteral num, ts)
+term (TokenOperator "(":ts)
+    | (TokenOperator ")") `elem` ts = 
+        let (exprInParenthesis, _:exprAfterParenthesis) = span (/= TokenOperator ")") ts
+            (node, remaining) = expr exprInParenthesis
+         in if null remaining
+               then (node, exprAfterParenthesis)
+               else error $ "Parser: too much operands: " ++ show remaining
+    | otherwise = error $ "Parser: cannot find \")\""
+term ts = error $ "Parser: cannot parse tokens: " ++ show ts
