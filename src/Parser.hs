@@ -17,10 +17,11 @@ import Tokenizer (Token (..))
 -- unary      = ("+" | "-")? primary
 -- primary    = num | ident | "(" expr ")"
 
-data Node = NodeIntegerLiteral Int
-          | NodeOperator String Node Node
+data Node = NodeProgram [Node]
+          | NodeIntegerLiteral Int
           | NodeIdentifier String
-          | NodeProgram [Node]
+          | NodeUnaryOperator String Node
+          | NodeBinaryOperator String Node Node
           deriving (Show)
 
 parse :: [Token] -> Node
@@ -49,7 +50,7 @@ assign ts =
     let (lhs, lremaining) = equality ts
      in if (not . null) lremaining && head lremaining == TokenOperator "="
            then let (rhs, rremaining) = assign $ tail lremaining
-                 in (NodeOperator "=" lhs rhs, rremaining)
+                 in (NodeBinaryOperator "=" lhs rhs, rremaining)
            else (lhs, lremaining)
 
 equality :: [Token] -> (Node, [Token])
@@ -60,7 +61,7 @@ equality ts = equality' $ relational ts
         equality' (lhs, lremaining)
             | head lremaining `elem` [TokenOperator "==", TokenOperator "!="] = 
                 let (rhs, rremaining) = relational $ tail lremaining
-                    newLhs = ((\(TokenOperator x) -> NodeOperator x) $ head lremaining) lhs rhs
+                    newLhs = ((\(TokenOperator x) -> NodeBinaryOperator x) $ head lremaining) lhs rhs
                 in equality' (newLhs, rremaining)
             | otherwise = (lhs, lremaining)
 
@@ -72,7 +73,7 @@ relational ts = relational' $ add ts
         relational' (lhs, lremaining)
             | head lremaining `elem` [TokenOperator "<=", TokenOperator "<", TokenOperator ">=", TokenOperator ">"] = 
                 let (rhs, rremaining) = add $ tail lremaining
-                    newLhs = ((\(TokenOperator x) -> NodeOperator x) $ head lremaining) lhs rhs
+                    newLhs = ((\(TokenOperator x) -> NodeBinaryOperator x) $ head lremaining) lhs rhs
                 in relational' (newLhs, rremaining)
             | otherwise = (lhs, lremaining)
 
@@ -84,7 +85,7 @@ add ts = add' $ mul ts
         add' (lhs, lremaining)
             | head lremaining `elem` [TokenOperator "+", TokenOperator "-"] = 
                 let (rhs, rremaining) = mul $ tail lremaining
-                    newLhs = ((\(TokenOperator x) -> NodeOperator x) $ head lremaining) lhs rhs
+                    newLhs = ((\(TokenOperator x) -> NodeBinaryOperator x) $ head lremaining) lhs rhs
                 in add' (newLhs, rremaining)
             | otherwise = (lhs, lremaining)
 
@@ -96,14 +97,14 @@ mul ts = mul' $ unary ts
         mul' (lhs, lremaining)
             | head lremaining `elem` [TokenOperator "*", TokenOperator "/"] = 
                 let (rhs, rremaining) = unary $ tail lremaining
-                    newLhs = ((\(TokenOperator x) -> NodeOperator x) $ head lremaining) lhs rhs
+                    newLhs = ((\(TokenOperator x) -> NodeBinaryOperator x) $ head lremaining) lhs rhs
                 in mul' (newLhs, rremaining)
             | otherwise = (lhs, lremaining)
 
 unary :: [Token] -> (Node, [Token])
 unary tokens@(TokenOperator op:ts) = case op of "+" -> primary ts
                                                 "-" -> let (node, remaining) = primary ts
-                                                        in (NodeOperator "-" (NodeIntegerLiteral 0) node, remaining)
+                                                        in (NodeBinaryOperator "-" (NodeIntegerLiteral 0) node, remaining)
                                                 _ -> primary tokens
 unary ts = primary ts
 
