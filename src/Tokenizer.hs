@@ -16,21 +16,37 @@ data Token = TokenIntegerLiteral Int
 tokenize :: String -> [Token]
 tokenize "" = []
 tokenize input
-    -- WARNING: isSpace '\n' == True, remember to fix this when handling multi-line source code
-    -- WARNING: this will not work for string literals
+    -- Space outside string literal
     | isSpace $ head input = tokenize $ dropWhile isSpace input
-    | isDigit $ head input = (TokenIntegerLiteral $ (read (takeWhile isDigit input) :: Int))
-                             : (tokenize $ dropWhile isDigit input)
+
+    -- Integer literal
+    | isDigit $ head input =
+        let (num, remaining) = span isDigit input
+         in if null remaining || head remaining `notElem` identInitialAllow
+               then TokenIntegerLiteral (read num :: Int) : tokenize remaining
+               else error $ "Tokenizer: \"" ++ num ++ (takeWhile (`elem` identNameAllow) remaining) ++ "\" identifier cannot start with number"
+    
+    -- Identifier
+    | head input `elem` identInitialAllow =
+        let (ident, remaining) = span (`elem` identNameAllow) input
+         in TokenIdentifier ident : tokenize remaining
+    
+    -- Operator
     | any (`isPrefixOf` input) operatorList =
-        let op = head $ filter (`isPrefixOf` input) operatorList
-         in (TokenOperator op) : (tokenize $ fromJust $ stripPrefix op input)
-    | head input `elem` identifierNameAllow =
-        let ident = takeWhile (`elem` identifierNameAllow) input
-         in (TokenIdentifier ident) : (tokenize $ fromJust $ stripPrefix ident input)
-    | otherwise = error $ "Tokenizer: cannot tokenize \"" ++ input ++ "\""
+        -- Choose longest multi-character operator if more then one operator have the same initial
+        -- eg: choose "<=" instead of "<", or it will be incorrectly seperated as "<" and "="
+        let op = chooseLogenst $ filter (`isPrefixOf` input) operatorList
+            remaining = fromJust $ stripPrefix op input
+         in TokenOperator op : tokenize remaining
+    
+    -- Unknown
+    | otherwise =
+        error $ "Tokenizer: unknown operator \"" ++ (takeWhile (`notElem` (' ':identNameAllow)) input) ++ "\""
+    
     where
-        -- WARNING: multi-character operator must precede single-character operator
-        -- WARNING: this only works when all operators are left-associated
-        operatorList = [";", "==", "=", "!=", "<=", "<", ">=", ">", "+", "-", "*", "/", "(", ")"]
-        -- We don't need to exclude number as initial because `isDigit` already cover the case
-        identifierNameAllow = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz"
+        identInitialAllow = ['A'..'Z'] ++ ['a'..'z'] ++ ['_']
+        identNameAllow = identInitialAllow ++ ['0'..'9']
+        operatorList = [";", "=", "==", "!=", "<", "<=", ">", ">=", "+", "-", "*", "/", "(", ")"]
+        chooseLogenst :: [String] -> String
+        chooseLogenst [str] = str
+        chooseLogenst (x:xs) = if (length x) >= (length $ chooseLogenst xs) then x else chooseLogenst xs
