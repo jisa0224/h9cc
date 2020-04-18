@@ -9,8 +9,8 @@ import Data.List (isPrefixOf, stripPrefix)
 import Data.Maybe (fromJust)
 
 data Token = TokenIntegerLiteral Int
-           | TokenOperator String
            | TokenIdentifier String
+           | TokenOperator String
            deriving (Show, Eq)
 
 tokenize :: String -> [Token]

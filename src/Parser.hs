@@ -19,7 +19,7 @@ import Tokenizer (Token (..))
 
 data Node = NodeProgram [Node]
           | NodeIntegerLiteral Int
-          | NodeIdentifier String
+          | NodeVariable String
           | NodeUnaryOperator String Node
           | NodeBinaryOperator String Node Node
           deriving (Show)
@@ -110,7 +110,7 @@ unary ts = primary ts
 
 primary :: [Token] -> (Node, [Token])
 primary (TokenIntegerLiteral num:ts) = (NodeIntegerLiteral num, ts)
-primary (TokenIdentifier ident:ts) = (NodeIdentifier ident, ts)
+primary (TokenIdentifier ident:ts) = (NodeVariable ident, ts)
 primary (TokenOperator "(":ts)
     | (TokenOperator ")") `elem` ts = 
         let (exprInParenthesis, _:exprAfterParenthesis) = span (/= TokenOperator ")") ts
