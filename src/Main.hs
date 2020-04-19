@@ -2,6 +2,7 @@ import System.Environment (getArgs)
 
 import Tokenizer (tokenize)
 import Parser (parse)
+import Analyzer (analyze)
 import CodeGenerator (generateASMCode)
 
 main :: IO ()
@@ -12,4 +13,4 @@ main = do
        else error "參數數量錯誤！"
 
 compileCtoASM :: String -> String
-compileCtoASM input = generateASMCode $ parse $ tokenize input
+compileCtoASM input = generateASMCode $ analyze $ parse $ tokenize input

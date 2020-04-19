@@ -5,18 +5,38 @@ module CodeGenerator (
 
 import Parser (Node (..))
 
-generateASMCode :: Node -> String
-generateASMCode ast = unlines
+generateASMCode :: (Node, Int) -> String
+generateASMCode (ast, stackBytesNeeded) = unlines
     [".intel_syntax noprefix",
      ".global main",
      "main:",
+     "  push rbp",
+     "  mov rbp, rsp",
+     "  sub rsp, " ++ show stackBytesNeeded,
      generateASMCodeFromAST ast,
+     "  mov rsp, rbp",
+     "  pop rbp",
      "  ret"]
 
 generateASMCodeFromAST :: Node -> String
 generateASMCodeFromAST (NodeProgram stmts) =
     unlines $ map (\stmt -> generateASMCodeFromAST stmt ++ "\n  pop rax") stmts
 generateASMCodeFromAST (NodeIntegerLiteral num) = "  push " ++ show num
+generateASMCodeFromAST (NodeVariable _ offset) =
+    unlines ["  mov rax, rbp",
+             "  sub rax, " ++ show offset,
+             "  mov rax, [rax]",
+             "  push rax"]
+-- generateASMCodeFromAST (NodeUnaryOperator op value)
+generateASMCodeFromAST (NodeBinaryOperator "=" (NodeVariable _ offset) rhs) =  -- WARNING: this only works if lhs is a variable
+    unlines ["  mov rax, rbp",
+             "  sub rax, " ++ show offset,
+             "  push rax",
+             generateASMCodeFromAST rhs,
+             "  pop rdi",
+             "  pop rax",
+             "  mov [rax], rdi",
+             "  push rdi"]
 generateASMCodeFromAST (NodeBinaryOperator op lhs rhs) =
     unlines [generateASMCodeFromAST lhs,
              generateASMCodeFromAST rhs,
