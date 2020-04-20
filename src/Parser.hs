@@ -7,7 +7,7 @@ module Parser (
 import Tokenizer (Token (..))
 
 -- program    = stmt*
--- stmt       = expr ";"
+-- stmt       = expr ";" | "return" expr ";"
 -- expr       = assign
 -- assign     = equality ("=" assign)?                             right-associated
 -- equality   = relational ("==" relational | "!=" relational)*    left-associated
@@ -37,6 +37,11 @@ program ts =
      in newStmt:(program remaining)
 
 stmt :: [Token] -> (Node, [Token])
+stmt (TokenOperator "return":ts) =
+    let (exprBeforeSemicolon, remaining) = expr ts
+     in if (not . null) remaining && head remaining == TokenOperator ";"
+           then (NodeUnaryOperator "return" exprBeforeSemicolon, tail remaining)
+           else error "Parser: missing \";\""
 stmt ts =
     let (exprBeforeSemicolon, remaining) = expr ts
      in if (not . null) remaining && head remaining == TokenOperator ";"

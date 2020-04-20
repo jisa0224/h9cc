@@ -29,7 +29,9 @@ tokenize input
     -- Identifier
     | head input `elem` identInitialAllow =
         let (ident, remaining) = span (`elem` identNameAllow) input
-         in TokenIdentifier ident : tokenize remaining
+         in if ident `elem` operatorList    -- exception for english word operator
+               then TokenOperator ident : tokenize remaining
+               else TokenIdentifier ident : tokenize remaining
     
     -- Operator
     | any (`isPrefixOf` input) operatorList =
@@ -46,7 +48,7 @@ tokenize input
     where
         identInitialAllow = ['A'..'Z'] ++ ['a'..'z'] ++ ['_']
         identNameAllow = identInitialAllow ++ ['0'..'9']
-        operatorList = [";", "=", "==", "!=", "<", "<=", ">", ">=", "+", "-", "*", "/", "(", ")"]
+        operatorList = [";", "return", "=", "==", "!=", "<", "<=", ">", ">=", "+", "-", "*", "/", "(", ")"]
         chooseLogenst :: [String] -> String
         chooseLogenst [str] = str
         chooseLogenst (x:xs) = if (length x) >= (length $ chooseLogenst xs) then x else chooseLogenst xs

@@ -43,6 +43,8 @@ test "1+ -2 + +3*(-4)+5 + 200;" 192
 test "2 + 3 >= 5 == 5-4 < 0 != 1;" 1
 test "1+2/3;4>5;6==9;" 0
 test "a=3;b=a+9;b;" 12
+test "a = 3; b = 5 * 6 - 8; return a + b / 2; 99;" 14
+test "return 5; return 8;" 5
 
 echo ''
 echo 'h9cc test finish.'

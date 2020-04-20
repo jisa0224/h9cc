@@ -29,7 +29,13 @@ generateASMCode prog@(NodeProgram stmts localVarOffsetMap stackBytesNeeded) =
                      "  sub rax, " ++ show (fromJust $ lookup name localVarOffsetMap),
                      "  mov rax, [rax]",
                      "  push rax"]
-        -- generateASMCodeFromAST (NodeUnaryOperator op value)
+        generateASMCodeFromAST (NodeUnaryOperator op value) =
+            case op of "return" -> unlines [generateASMCodeFromAST value,
+                                            "  pop rax",
+                                            "  mov rsp, rbp",
+                                            "  pop rbp",
+                                            "  ret"]
+                       _ -> error $ "Code generator: unknown operator: " ++ op
         generateASMCodeFromAST (NodeBinaryOperator "=" (NodeLocalVariable name) rhs) =  -- WARNING: this only works if lhs is a variable
             unlines ["  mov rax, rbp",
                      "  sub rax, " ++ show (fromJust $ lookup name localVarOffsetMap),
