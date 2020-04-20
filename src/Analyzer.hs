@@ -21,7 +21,7 @@ analyze prog@(NodeProgram stmts) =
 getVariableList :: Node -> [String]
 getVariableList (NodeProgram stmts) = nub $ concatMap getVariableList stmts
 getVariableList (NodeIntegerLiteral _) = []
-getVariableList (NodeVariable name _) = [name]
+getVariableList (NodeLocalVariable name _) = [name]
 getVariableList (NodeUnaryOperator _ node) = getVariableList node
 getVariableList (NodeBinaryOperator _ lnode rnode) = (getVariableList lnode) ++ (getVariableList rnode)
 
@@ -31,7 +31,7 @@ allocateVariableOnStack (v:vs) = (v, (length vs + 1) * 8) : allocateVariableOnSt
 
 fillVariableAddress :: [(String, Int)] -> Node -> Node
 fillVariableAddress varAddrMap (NodeProgram stmts) = NodeProgram $ map (fillVariableAddress varAddrMap) stmts
-fillVariableAddress varAddrMap (NodeVariable name _) = NodeVariable name $ fromJust $ lookup name varAddrMap
+fillVariableAddress varAddrMap (NodeLocalVariable name _) = NodeLocalVariable name $ fromJust $ lookup name varAddrMap
 fillVariableAddress varAddrMap (NodeUnaryOperator op value) = NodeUnaryOperator op $ fillVariableAddress varAddrMap value
 fillVariableAddress varAddrMap (NodeBinaryOperator op lhs rhs) = NodeBinaryOperator op (fillVariableAddress varAddrMap lhs) (fillVariableAddress varAddrMap rhs)
 fillVariableAddress _ node = node
@@ -46,5 +46,5 @@ checkOperatorAssign (NodeBinaryOperator _ lhs rhs) = checkOperatorAssign lhs && 
 checkOperatorAssign _ = True
 
 isAssignable :: Node -> Bool
-isAssignable (NodeVariable _ _) = True
+isAssignable (NodeLocalVariable _ _) = True
 isAssignable node = error $ "Analyzer: " ++ show node ++ " lhs cannot be assigned"

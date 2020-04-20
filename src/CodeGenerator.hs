@@ -22,13 +22,13 @@ generateASMCodeFromAST :: Node -> String
 generateASMCodeFromAST (NodeProgram stmts) =
     unlines $ map (\stmt -> generateASMCodeFromAST stmt ++ "\n  pop rax") stmts
 generateASMCodeFromAST (NodeIntegerLiteral num) = "  push " ++ show num
-generateASMCodeFromAST (NodeVariable _ offset) =
+generateASMCodeFromAST (NodeLocalVariable _ offset) =
     unlines ["  mov rax, rbp",
              "  sub rax, " ++ show offset,
              "  mov rax, [rax]",
              "  push rax"]
 -- generateASMCodeFromAST (NodeUnaryOperator op value)
-generateASMCodeFromAST (NodeBinaryOperator "=" (NodeVariable _ offset) rhs) =  -- WARNING: this only works if lhs is a variable
+generateASMCodeFromAST (NodeBinaryOperator "=" (NodeLocalVariable _ offset) rhs) =  -- WARNING: this only works if lhs is a variable
     unlines ["  mov rax, rbp",
              "  sub rax, " ++ show offset,
              "  push rax",

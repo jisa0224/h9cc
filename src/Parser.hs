@@ -19,7 +19,7 @@ import Tokenizer (Token (..))
 
 data Node = NodeProgram [Node]
           | NodeIntegerLiteral Int
-          | NodeVariable String Int    -- memory address, can be stack offset (local variable) or absolute (global variable)
+          | NodeLocalVariable String Int    -- memory address, can be stack offset (local variable) or absolute (global variable)
           | NodeUnaryOperator String Node
           | NodeBinaryOperator String Node Node
           deriving (Show)
@@ -110,7 +110,7 @@ unary ts = primary ts
 
 primary :: [Token] -> (Node, [Token])
 primary (TokenIntegerLiteral num:ts) = (NodeIntegerLiteral num, ts)
-primary (TokenIdentifier ident:ts) = (NodeVariable ident 0, ts)    -- memory address will be filled by Analyzer
+primary (TokenIdentifier ident:ts) = (NodeLocalVariable ident 0, ts)    -- memory address will be filled by Analyzer
 primary (TokenOperator "(":ts)
     | (TokenOperator ")") `elem` ts = 
         let (exprInParenthesis, _:exprAfterParenthesis) = span (/= TokenOperator ")") ts
