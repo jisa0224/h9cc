@@ -17,16 +17,18 @@ import Tokenizer (Token (..))
 -- unary      = ("+" | "-")? primary
 -- primary    = num | ident | "(" expr ")"
 
-data Node = NodeProgram [Node]
+data Node = NodeProgram {statements :: [Node],
+                         localVarStackOffsetMap :: [(String, Int)],
+                         stackBytesNeeded :: Int}
           | NodeIntegerLiteral Int
-          | NodeLocalVariable String Int    -- memory address, can be stack offset (local variable) or absolute (global variable)
+          | NodeLocalVariable String
           | NodeUnaryOperator String Node
           | NodeBinaryOperator String Node Node
           deriving (Show)
 
 parse :: [Token] -> Node
 parse [] = error "Parser: empty expression is not allowed"
-parse ts = NodeProgram $ program ts
+parse ts = NodeProgram (program ts) [] 0
 
 program :: [Token] -> [Node]
 program [] = []
@@ -110,7 +112,7 @@ unary ts = primary ts
 
 primary :: [Token] -> (Node, [Token])
 primary (TokenIntegerLiteral num:ts) = (NodeIntegerLiteral num, ts)
-primary (TokenIdentifier ident:ts) = (NodeLocalVariable ident 0, ts)    -- memory address will be filled by Analyzer
+primary (TokenIdentifier ident:ts) = (NodeLocalVariable ident, ts)
 primary (TokenOperator "(":ts)
     | (TokenOperator ")") `elem` ts = 
         let (exprInParenthesis, _:exprAfterParenthesis) = span (/= TokenOperator ")") ts

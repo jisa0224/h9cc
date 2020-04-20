@@ -4,47 +4,41 @@ module Analyzer (
 ) where
 
 import Data.List (nub)
-import Data.Maybe (fromJust)
 
 import Parser (Node (..))
 
-analyze :: Node -> (Node, Int)    -- Bytes need for stack
-analyze prog@(NodeProgram stmts) =
-    let varAddrMap = allocateVariableOnStack $ getVariableList prog
-        stackBytesNeeded = if null varAddrMap then 0 else snd $ head varAddrMap
-        progAllocated = fillVariableAddress varAddrMap prog
-        operatorAssignChecked = checkOperatorAssign progAllocated    -- program exit here if didn't pass the check
-     in (progAllocated, stackBytesNeeded)
+-- `analyze` uses pipeline model by chaining a set of analysis
+analyze :: Node -> Node
+analyze prog = checkOperatorAssign $ allocateLocalVariableOnStack prog
 
+allocateLocalVariableOnStack :: Node -> Node
+allocateLocalVariableOnStack (NodeProgram stmts _ _) =
+    let localVarList = nub $ concatMap getLocalVarList  stmts
+        localVarOffsetMap = setLocalVarOffset localVarList
+        stackBytesRequire = if null localVarOffsetMap then 0 else snd $ head localVarOffsetMap
+     in NodeProgram stmts localVarOffsetMap stackBytesRequire
+     where
+         getLocalVarList :: Node -> [String]
+         getLocalVarList (NodeIntegerLiteral _) = []
+         getLocalVarList (NodeLocalVariable name) = [name]
+         getLocalVarList (NodeUnaryOperator _ node) = getLocalVarList node
+         getLocalVarList (NodeBinaryOperator _ lnode rnode) = (getLocalVarList lnode) ++ (getLocalVarList rnode)
+         
+         setLocalVarOffset :: [String] -> [(String, Int)]
+         setLocalVarOffset [] = []
+         setLocalVarOffset (v:vs) = (v, (length vs + 1) * 8) : setLocalVarOffset vs
 
--- Allocate memory for variables
-getVariableList :: Node -> [String]
-getVariableList (NodeProgram stmts) = nub $ concatMap getVariableList stmts
-getVariableList (NodeIntegerLiteral _) = []
-getVariableList (NodeLocalVariable name _) = [name]
-getVariableList (NodeUnaryOperator _ node) = getVariableList node
-getVariableList (NodeBinaryOperator _ lnode rnode) = (getVariableList lnode) ++ (getVariableList rnode)
-
-allocateVariableOnStack :: [String] -> [(String, Int)]
-allocateVariableOnStack [] = []
-allocateVariableOnStack (v:vs) = (v, (length vs + 1) * 8) : allocateVariableOnStack vs
-
-fillVariableAddress :: [(String, Int)] -> Node -> Node
-fillVariableAddress varAddrMap (NodeProgram stmts) = NodeProgram $ map (fillVariableAddress varAddrMap) stmts
-fillVariableAddress varAddrMap (NodeLocalVariable name _) = NodeLocalVariable name $ fromJust $ lookup name varAddrMap
-fillVariableAddress varAddrMap (NodeUnaryOperator op value) = NodeUnaryOperator op $ fillVariableAddress varAddrMap value
-fillVariableAddress varAddrMap (NodeBinaryOperator op lhs rhs) = NodeBinaryOperator op (fillVariableAddress varAddrMap lhs) (fillVariableAddress varAddrMap rhs)
-fillVariableAddress _ node = node
-
-
--- Check if all assign ("=") statement is valid (lhs can be assigned)
-checkOperatorAssign :: Node -> Bool
-checkOperatorAssign (NodeProgram stmts) = all checkOperatorAssign stmts
-checkOperatorAssign (NodeUnaryOperator _ value) = checkOperatorAssign value
-checkOperatorAssign (NodeBinaryOperator "=" lhs rhs) = isAssignable lhs && checkOperatorAssign rhs
-checkOperatorAssign (NodeBinaryOperator _ lhs rhs) = checkOperatorAssign lhs && checkOperatorAssign rhs
-checkOperatorAssign _ = True
-
-isAssignable :: Node -> Bool
-isAssignable (NodeLocalVariable _ _) = True
-isAssignable node = error $ "Analyzer: " ++ show node ++ " lhs cannot be assigned"
+checkOperatorAssign :: Node -> Node
+checkOperatorAssign prog =
+    if isAssignValid prog then prog else error "Analyzer: never reaches here"
+    where
+        isAssignValid :: Node -> Bool
+        isAssignValid (NodeProgram stmts _ _) = all isAssignValid stmts
+        isAssignValid (NodeUnaryOperator _ value) = isAssignValid value
+        isAssignValid (NodeBinaryOperator "=" lhs rhs) = isMemoryAddress lhs && isAssignValid rhs
+        isAssignValid (NodeBinaryOperator _ lhs rhs) = isAssignValid lhs && isAssignValid rhs
+        isAssignValid _ = True
+        
+        isMemoryAddress :: Node -> Bool
+        isMemoryAddress (NodeLocalVariable _) = True
+        isMemoryAddress node = error $ "Analyzer: " ++ show node ++ " lhs cannot be assigned"
