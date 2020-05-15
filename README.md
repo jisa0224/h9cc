@@ -1,4 +1,4 @@
-# h9cc
+# h9cc \[已停止開發\]
 
 A C compiler written in Haskell for learning purpose
 
@@ -30,3 +30,18 @@ Tokenizer.hs        -- 詞法分析（Lexical analysis）
 Parser.hs           -- 語法分析（Syntactic analysis）和語意分析（Semantic analysis）
 CodeGenerator.hs    -- 生成組合語言
 ```
+
+## Haskell 參考文檔
+
+教學：  
+[Learn You a Haskell for Great Good!](http://learnyouahaskell.com/)
+
+參考文檔：  
+[Haskell 2010 Language Report](https://www.haskell.org/onlinereport/haskell2010/)  
+[Haskell Hierarchical Libraries](https://downloads.haskell.org/~ghc/latest/docs/html/libraries/)  
+[Hoogle: Haskell API search engine](https://hoogle.haskell.org/)  
+[Hackage: The Haskell Package Repository](https://hackage.haskell.org/)
+
+## 停止開發
+
+因為我放棄使用 Haskell，因此 h9cc 已於 2020/05/16 停止開發。
